@@ -3,11 +3,22 @@
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
+const CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json',
+};
+
 exports.handler = async (event) => {
+    if (event.httpMethod === 'OPTIONS') {
+        return { statusCode: 204, headers: CORS, body: '' };
+    }
+
     if (event.httpMethod !== 'POST') {
         return {
             statusCode: 405,
-            headers: { 'Content-Type': 'application/json' },
+            headers: CORS,
             body: JSON.stringify({ error: 'Method not allowed', sub_url: null })
         };
     }
@@ -18,7 +29,7 @@ exports.handler = async (event) => {
     } catch (e) {
         return {
             statusCode: 400,
-            headers: { 'Content-Type': 'application/json' },
+            headers: CORS,
             body: JSON.stringify({ error: 'Invalid JSON', sub_url: null })
         };
     }
@@ -28,7 +39,7 @@ exports.handler = async (event) => {
     if (!username || typeof username !== 'string' || username.trim().length === 0) {
         return {
             statusCode: 400,
-            headers: { 'Content-Type': 'application/json' },
+            headers: CORS,
             body: JSON.stringify({ error: 'Username is required', sub_url: null })
         };
     }
@@ -36,7 +47,7 @@ exports.handler = async (event) => {
     if (!session_token || typeof session_token !== 'string') {
         return {
             statusCode: 400,
-            headers: { 'Content-Type': 'application/json' },
+            headers: CORS,
             body: JSON.stringify({ error: 'Session token is required', sub_url: null })
         };
     }
@@ -53,12 +64,11 @@ exports.handler = async (event) => {
         if (!marzbanUrl || !marzbanLogin || !marzbanPassword) {
             return {
                 statusCode: 500,
-                headers: { 'Content-Type': 'application/json' },
+                headers: CORS,
                 body: JSON.stringify({ error: 'Server not properly configured', sub_url: null })
             };
         }
 
-        // ── Шаг 1: Авторизация в Marzban ──────────────────────────────────────
         const tokenResponse = await fetch(`${marzbanUrl}/api/admin/token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -70,7 +80,7 @@ exports.handler = async (event) => {
             console.error('Token error:', errText);
             return {
                 statusCode: 502,
-                headers: { 'Content-Type': 'application/json' },
+                headers: CORS,
                 body: JSON.stringify({ error: 'Failed to authenticate with Marzban', sub_url: null })
             };
         }
@@ -81,12 +91,11 @@ exports.handler = async (event) => {
         if (!accessToken) {
             return {
                 statusCode: 502,
-                headers: { 'Content-Type': 'application/json' },
+                headers: CORS,
                 body: JSON.stringify({ error: 'Invalid token response', sub_url: null })
             };
         }
 
-        // ── Шаг 2: Создаём пользователя в Marzban (24ч) ───────────────────────
         const shortToken = session_token.slice(-12);
         const marzbanUsername = `guest_${shortToken}_dev1`;
         const timestamp = Math.floor(Date.now() / 1000);
@@ -120,7 +129,7 @@ exports.handler = async (event) => {
             if (!existingResp.ok) {
                 return {
                     statusCode: 502,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: CORS,
                     body: JSON.stringify({ error: 'Failed to get existing user', sub_url: null })
                 };
             }
@@ -130,7 +139,7 @@ exports.handler = async (event) => {
             console.error('Create user failed:', createUserResponse.status, errBody);
             return {
                 statusCode: 502,
-                headers: { 'Content-Type': 'application/json' },
+                headers: CORS,
                 body: JSON.stringify({ error: 'Failed to create VPN user', sub_url: null })
             };
         } else {
@@ -145,14 +154,15 @@ exports.handler = async (event) => {
         if (!subscriptionUrl) {
             return {
                 statusCode: 502,
-                headers: { 'Content-Type': 'application/json' },
+                headers: CORS,
                 body: JSON.stringify({ error: 'Failed to get subscription URL', sub_url: null })
             };
         }
 
-        // ── Шаг 3: Сохраняем триал в бот-сервер ───────────────────────────────
+// Промокод возвращается из /api/trial
+        let promoCode = null;
         try {
-            await fetch(`${botApiUrl}/api/trial`, {
+            const trialResp = await fetch(`${botApiUrl}/api/trial`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -162,31 +172,19 @@ exports.handler = async (event) => {
                     ip: ip
                 })
             });
+            if (trialResp.ok) {
+                const trialData = await trialResp.json();
+                promoCode = trialData.promo_code || null;
+            }
         } catch (botErr) {
             console.error('Failed to save trial to bot server:', botErr.message);
-        }
-
-        // ── Шаг 4: Генерируем промокод +4 дня ─────────────────────────────────
-        let promoCode = null;
-        try {
-            const promoResp = await fetch(`${botApiUrl}/api/promo`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ip: ip })
-            });
-            if (promoResp.ok) {
-                const promoData = await promoResp.json();
-                promoCode = promoData.promo_code || null;
-            }
-        } catch (promoErr) {
-            console.error('Failed to create promo code:', promoErr.message);
         }
 
         const happUrl = `happ://add/${encodeURIComponent(subscriptionUrl)}`;
 
         return {
             statusCode: 200,
-            headers: { 'Content-Type': 'application/json' },
+            headers: CORS,
             body: JSON.stringify({
                 success: true,
                 sub_url: subscriptionUrl,
@@ -205,7 +203,7 @@ exports.handler = async (event) => {
         console.error('Error:', error);
         return {
             statusCode: 500,
-            headers: { 'Content-Type': 'application/json' },
+            headers: CORS,
             body: JSON.stringify({ error: 'Internal server error', details: error.message, sub_url: null })
         };
     }
