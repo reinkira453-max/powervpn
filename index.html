@@ -756,7 +756,7 @@
             getKeyBtn.disabled = true;
 
             try {
-                const resp = await fetch('https://powervpn-api.powervpn.workers.dev/api/trial', {
+                const resp = await fetch('https://splendorous-kleicha-fd7699.netlify.app/.netlify/functions/trial', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, session_token: sessionToken })
