@@ -20,10 +20,3 @@
   MARZBAN_PASSWORD = "XY5Rj9XPlj"
   # URL бот-сервера — trial.js сохраняет сюда данные триала
   BOT_API_URL = "http://213.165.41.80:8080"
-
-[[headers]]
-  for = "/.netlify/functions/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type"
